@@ -24,7 +24,26 @@ class Parser {
     }
 
     private Expr expression() {
-        return equality();
+        return conditional();
+    }
+
+    private Expr conditional() {
+        Expr condition = comma();
+
+        if(match(QUESTION)) {
+            Expr thenBranch = expression();
+            consume(COLON,
+                    "Expect ':' after then branch of conditional expression.");
+            Expr elseBranch = conditional();
+
+            return new Expr.Conditional(condition, thenBranch, elseBranch);
+        }
+
+        return condition;
+    }
+
+    private Expr comma() {
+        return leftAssociative(() -> (comparison()), COMMA);
     }
 
     private Expr equality() {
@@ -47,7 +66,7 @@ class Parser {
         if(match(BANG, MINUS)) {
             Token operator = previous();
             Expr right = primary();
-            return new Expr.Unary(operator, primary());
+            return new Expr.Unary(operator, right);
         }
 
         return primary();
@@ -65,10 +84,38 @@ class Parser {
             return new Expr.Grouping(expr);
         }
 
+        if(errorPrefix(() -> (equality()), BANG_EQUAL, EQUAL_EQUAL) != null) {
+            return null;
+        }
+
+        if(errorPrefix(() -> (comparison()),
+                    GREATER, GREATER_EQUAL, LESS, LESS_EQUAL) != null) {
+            return null;
+        }
+
+        if(errorPrefix(() -> (term()), PLUS) != null) {
+            return null;
+        }
+
+        if(errorPrefix(() -> (factor()), SLASH, STAR) != null) {
+            return null;
+        }
+
         throw error(peek(), "Expect expression.");
     }
 
-    private Expr leftAssociative(Supplier<Expr> exprSupplier, TokenType... types) {
+    private Expr errorPrefix(
+            Supplier<Expr> exprSupplier, TokenType... types) {
+        if(match(types)) {
+            error(previous(), "Missing left-hand operand.");
+            return exprSupplier.get();
+        }
+
+        return null;
+    }
+
+    private Expr leftAssociative(
+            Supplier<Expr> exprSupplier, TokenType... types) {
         Expr expr = exprSupplier.get();
 
         while(match(types)) {

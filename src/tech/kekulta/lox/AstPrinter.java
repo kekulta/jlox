@@ -19,6 +19,14 @@ class AstPrinter implements Expr.Visitor<String> {
     }
 
     @Override
+    public String visitConditionalExpr(Expr.Conditional expr) {
+        return "(" + expr.condition.accept(this)
+            + " ? " + expr.thenBranch.accept(this) 
+            + " : " + expr.elseBranch.accept(this) 
+            + ")";
+    }
+
+    @Override
     public String visitBinaryExpr(Expr.Binary expr) {
         return parenthesize(expr.operator.lexeme, expr.left, expr.right);
     }

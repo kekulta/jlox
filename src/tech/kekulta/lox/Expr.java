@@ -2,8 +2,9 @@ package tech.kekulta.lox;
 
 import java.util.List;
 
-public abstract class Expr {
+abstract class Expr {
   interface Visitor<R> {
+    R visitConditionalExpr(Conditional expr);
     R visitBinaryExpr(Binary expr);
     R visitGroupingExpr(Grouping expr);
     R visitLiteralExpr(Literal expr);
@@ -11,6 +12,23 @@ public abstract class Expr {
   }
 
   abstract <R> R accept(Visitor<R> visitor);
+
+  static class Conditional extends Expr {
+    Conditional(Expr condition, Expr thenBranch, Expr elseBranch) {
+      this.condition = condition;
+      this.thenBranch = thenBranch;
+      this.elseBranch = elseBranch;
+    }
+
+    @Override
+    <R> R accept(Visitor<R> visitor) {
+      return visitor.visitConditionalExpr(this);
+    }
+
+    final Expr condition;
+    final Expr thenBranch;
+    final Expr elseBranch;
+  }
 
   static class Binary extends Expr {
     Binary(Expr left, Token operator, Expr right) {

@@ -19,6 +19,14 @@ class RpnPrinter implements Expr.Visitor<String> {
     }
 
     @Override
+    public String visitConditionalExpr(Expr.Conditional expr) {
+        return "(" + expr.condition.accept(this) 
+            + " ? " + expr.thenBranch.accept(this) 
+            + " : " + expr.elseBranch.accept(this) 
+            + ")";
+    }
+
+    @Override
     public String visitBinaryExpr(Expr.Binary expr) {
         return rpn(expr.operator.lexeme, expr.left, expr.right);
     }
@@ -36,7 +44,12 @@ class RpnPrinter implements Expr.Visitor<String> {
 
     @Override
     public String visitUnaryExpr(Expr.Unary expr) {
-        return rpn(expr.operator.lexeme, expr.right);
+        String lexeme = expr.operator.lexeme;
+        if(expr.operator.type == TokenType.MINUS) {
+            lexeme = "~";
+        }
+
+        return rpn(lexeme, expr.right);
     }
 
     private String rpn(String name, Expr... exprs) {
