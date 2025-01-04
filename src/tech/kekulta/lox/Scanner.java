@@ -9,7 +9,7 @@ import static tech.kekulta.lox.TokenType.*;
 
 class Scanner {
   private final String source;
-  private final List<Token> tokens = new ArrayList();
+  private final List<Token> tokens = new ArrayList<Token>();
   private final static Map<String, TokenType> keywords;
 
   private int start = 0;
@@ -17,7 +17,7 @@ class Scanner {
   private int line = 1;
 
   static {
-    keywords = new HashMap<>();
+    keywords = new HashMap<String, TokenType>();
 
     keywords.put("and",     AND);
     keywords.put("class",   CLASS);
@@ -81,7 +81,9 @@ class Scanner {
 
       case '/':
         if(match('/')) {
-          while(peek() != '\n' && !isAtEnd()) advance();
+            singleLineComment();
+        } else if(match('*')) {
+            multiLineComment();
         } else {
           addToken(SLASH);
         }
@@ -95,10 +97,39 @@ class Scanner {
         } else if(isAlpha(c)) {
           identifier();
         } else {
-          Lox.error(line, "Unexpected character!");
+          Lox.error(line, "Unexpected character: '" + c + "'");
         }
         break;
     }
+  }
+
+  private void multiLineComment() {
+      int level = 1;
+      while(!isAtEnd()) {
+          if(match('\n')) {
+              line++;
+          }
+          if(match('/') && match('*')) {
+              level++;
+          }
+
+          if(match('*') && match('/')) {
+              level--;
+              if(level == 0) {
+                  return; 
+              }
+          }
+
+          if(!isAtEnd()) {
+              advance();
+          }
+      };
+      
+      Lox.error(line, "Unterminated multi-line comment");
+  }
+
+  private void singleLineComment() {
+      while(peek() != '\n' && !isAtEnd()) advance();
   }
 
   private void identifier() {

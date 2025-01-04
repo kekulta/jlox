@@ -1,0 +1,21 @@
+/*
+ Multi-line comment
+ */
+
+/*
+    /*
+     Nested multi-line comment
+    */
+ */
+
+/**
+ * Multi-line doc comment(not supported)
+ */
+
+/*
+ */
+
+// Basic precedence
+(10 + 20) + 50 * 60 + (30 - 40)
+// Grouping precedence
+(10 + 20) * 30
