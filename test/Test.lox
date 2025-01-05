@@ -1,5 +1,8 @@
-/*
- Multi-line comment
+/** 
+TODO
+FIXME
+XXX
+    Multi-line comment
  */
 
 /*
@@ -20,4 +23,5 @@
 // Grouping precedence
 // (- 10 + 20) * 30, -20, (-10) * 100
 //, 1 == 2 ? 1 : 2, true, false
+
 (nil ? "one" : false) ? "two" : "three" 
