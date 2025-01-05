@@ -43,7 +43,7 @@ class Parser {
     }
 
     private Expr comma() {
-        return leftAssociative(() -> (comparison()), COMMA);
+        return leftAssociative(() -> (equality()), COMMA);
     }
 
     private Expr equality() {
@@ -51,7 +51,8 @@ class Parser {
     }
 
     private Expr comparison() {
-        return leftAssociative(() -> (term()), GREATER, GREATER_EQUAL, LESS, LESS_EQUAL);
+        return leftAssociative(() -> (term()),
+                GREATER, GREATER_EQUAL, LESS, LESS_EQUAL);
     }
 
     private Expr term() {
@@ -63,13 +64,24 @@ class Parser {
     }
 
     private Expr unary() {
-        if(match(BANG, MINUS)) {
+        if(match(BANG, MINUS, MINUS_MINUS, PLUS_PLUS)) {
             Token operator = previous();
-            Expr right = primary();
+            Expr right = unary();
             return new Expr.Unary(operator, right);
         }
 
-        return primary();
+        return postfix();
+    }
+
+    private Expr postfix() {
+        Expr expr = primary();
+
+        if(match(MINUS_MINUS, PLUS_PLUS)) {
+            Token operator = previous();
+            return new Expr.Postfix(expr, operator);
+        }
+
+        return expr;
     }
 
     private Expr primary() {
@@ -128,11 +140,9 @@ class Parser {
     }
 
     private boolean match(TokenType... types) {
-        for(TokenType type : types) {
-            if(check(type)) {
-                advance();
-                return true;
-            }
+        if(check(types)) {
+            advance();
+            return true;
         }
 
         return false;
@@ -141,6 +151,30 @@ class Parser {
     private Token advance() {
         if(!isAtEnd()) current++;
         return previous();
+    }
+
+    private boolean checkNext(TokenType... types) {
+        if(isAtEnd()) return false;
+
+        for(TokenType type : types) {
+            if(peekNext().type == type) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean check(TokenType... types) {
+        if(isAtEnd()) return false;
+
+        for(TokenType type : types) {
+            if(peek().type == type) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private boolean check(TokenType type) {
@@ -154,6 +188,11 @@ class Parser {
 
     private Token peek() {
         return tokens.get(current);
+    }
+
+    private Token peekNext() {
+        if(isAtEnd()) return peek();
+        return tokens.get(current + 1);
     }
 
     private Token previous() {
