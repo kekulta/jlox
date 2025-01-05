@@ -170,7 +170,18 @@ class Scanner {
 
     advance();
 
-    String value = source.substring(start + 1, current - 1);
+    String value = source
+        .substring(start + 1, current - 1);
+
+    EscapedString escaped = new EscapedString(value);
+
+    try {
+        value = escaped.escape();
+    } catch(IllegalArgumentException e) {
+       Lox.error(line, e.getMessage());
+       return;
+    }
+
     addToken(STRING, value);
   }
 

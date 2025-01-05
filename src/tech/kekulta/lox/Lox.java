@@ -16,7 +16,7 @@ public class Lox {
 
     public static void main(String[] args) throws IOException {
         if (args.length > 1) {
-            System.out.println("Usage: jlox [script]");
+            Printer.println("Usage: jlox [script]");
         } else if(args.length == 1) {
             runFile(args[0]);
         } else {
@@ -25,8 +25,11 @@ public class Lox {
     }
 
     static void runtimeError(RuntimeError error) {
-        System.err.println(error.getMessage()
-                + "\n[line " + error.token.line + "]");
+        Printer.eprintln(
+                "[line " 
+                + error.token.line 
+                + "] RuntimeError: " 
+                + error.getMessage());
         hadRuntimeError = true;
     }
 
@@ -55,11 +58,33 @@ public class Lox {
         BufferedReader reader = new BufferedReader(input);
 
         for(;;) {
-            System.out.print("> ");
-            String line = reader.readLine();
-            if (line == null) break;
-            run(line);
             hadError = false;
+            if(Printer.isNewLine()) {
+                Printer.print("> ");
+            } else {
+                Printer.print("\033[7m%\033[0m\n> ");
+            }
+            String line = reader.readLine();
+
+            if (line == null) continue;
+
+            Scanner scanner = new Scanner(line);
+            List<Token> tokens = scanner.scanTokens();
+
+            Parser parser = new Parser(tokens);
+            List<Stmt> statements = parser.parseRepl();
+            if(hadError) continue;
+
+            if(statements.size() == 1 
+                    && statements.get(0) instanceof Stmt.Expression) {
+                String result = 
+                    interpreter.interpret((Stmt.Expression)statements.get(0));
+                if(result != null) {
+                    Printer.println(result);
+                }
+            } else {
+                interpreter.interpret(statements);
+            }
         }
     }
 
@@ -67,21 +92,15 @@ public class Lox {
         Scanner scanner = new Scanner(source);
         List<Token> tokens = scanner.scanTokens();
 
-        // for(Token token : tokens) {
-        //     System.out.println(token.toString());
-        // }
-
         Parser parser = new Parser(tokens);
-        Expr expression = parser.parse();
-
+        List<Stmt> statements = parser.parse();
         if(hadError) return;
 
-        // System.out.println(new AstPrinter().print(expression));
-        interpreter.interpret(expression);
+        interpreter.interpret(statements);
     }
 
     private static void report(int line, String where, String message) {
-        System.err.printf("[line %d] Error%s: %s\n", line, where, message);
+        Printer.eprintf("[line %d] Error%s: %s\n", line, where, message);
         hadError = true;
     }
 }

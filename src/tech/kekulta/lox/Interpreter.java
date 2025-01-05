@@ -1,18 +1,62 @@
 package tech.kekulta.lox;
 
 import java.util.Objects;
+import java.util.List;
 
 import static tech.kekulta.lox.TokenType.*;
 
-class Interpreter implements Expr.Visitor<Object> {
+class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
 
-    void interpret(Expr expr) {
+    private Environment env = new Environment();
+
+    void interpret(List<Stmt> statements) {
         try {
-            Object value = evaluate(expr);
-            System.out.println(stringify(value));
+            for(Stmt statement : statements) {
+                execute(statement);
+            }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
         }
+    }
+
+    String interpret(Stmt.Expression stmt) {
+        try {
+            return stringify(evaluate(stmt.expression));
+        } catch (RuntimeError error) {
+            Lox.runtimeError(error);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
+        evaluate(stmt.expression);
+        return null;
+    }
+
+    @Override
+    public Void visitPrintStmt(Stmt.Print stmt) {
+        Object value = evaluate(stmt.expression);
+        Printer.print(stringify(value));
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        Object value = null;
+        if(stmt.initializer != null) {
+            value = evaluate(stmt.initializer);
+        }
+
+        env.define(stmt.name.lexeme, value);
+        return null;
+    }
+
+    @Override
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        executeBlock(stmt.statements, new Environment(env));
+        return null;
     }
 
     @Override
@@ -33,21 +77,28 @@ class Interpreter implements Expr.Visitor<Object> {
 
         switch(expr.operator.type) {
             case SLASH:
-                checkNumberOperands(expr.operator, left, right);
+                requireNumberOperands(expr.operator, left, right);
+                if((double)right == 0.0) {
+                    throw new RuntimeError(
+                            expr.operator, "Division by zero!");
+                }
+
                 return (double)left / (double)right;
             case STAR:
-                checkNumberOperands(expr.operator, left, right);
+                requireNumberOperands(expr.operator, left, right);
                 return (double)left * (double)right;
             case MINUS:
-                checkNumberOperands(expr.operator, left, right);
+                requireNumberOperands(expr.operator, left, right);
                 return (double)left - (double)right;
             case PLUS:
-                if(left instanceof Double && right instanceof Double)
+                if(left instanceof String || right instanceof String)
+                    return stringify(left) + stringify(right);
+
+                if(isNumberOperands(left, right))
                     return (double)left + (double)right;
-                if(left instanceof String && right instanceof String)
-                    return (String)left + (String)right;
+
                 throw new RuntimeError(expr.operator,
-                        "Operands must be two numbers or two strings.");
+                        "Operands must be two numbers or strings.");
 
             case EQUAL_EQUAL:
                 return isEqual(left, right);
@@ -55,17 +106,37 @@ class Interpreter implements Expr.Visitor<Object> {
                 return !isEqual(left, right);
 
             case GREATER:
-                checkNumberOperands(expr.operator, left, right);
-                return (double)left > (double)right;
+                if(isNumberOperands(left, right))
+                    return (double)left > (double)right;
+                if(isStringOperands(left, right))
+                    return compareStrings(expr.operator,
+                            (String)left, (String)right) > 0;
+                throw new RuntimeError(expr.operator,
+                        "Only numbers and Strings can be compared.");
             case GREATER_EQUAL:
-                checkNumberOperands(expr.operator, left, right);
-                return (double)left >= (double)right;
+                if(isNumberOperands(left, right))
+                    return (double)left >= (double)right;
+                if(isStringOperands(left, right))
+                    return compareStrings(expr.operator,
+                            (String)left, (String)right) >= 0;
+                throw new RuntimeError(expr.operator,
+                        "Only numbers and Strings can be compared.");
             case LESS:
-                checkNumberOperands(expr.operator, left, right);
-                return (double)left < (double)right;
+                if(isNumberOperands(left, right))
+                    return (double)left < (double)right;
+                if(isStringOperands(left, right))
+                    return compareStrings(expr.operator,
+                            (String)left, (String)right) < 0;
+                throw new RuntimeError(expr.operator,
+                        "Only numbers and Strings can be compared.");
             case LESS_EQUAL:
-                checkNumberOperands(expr.operator, left, right);
-                return (double)left <= (double)right;
+                if(isNumberOperands(left, right))
+                    return (double)left <= (double)right;
+                if(isStringOperands(left, right))
+                    return compareStrings(expr.operator,
+                            (String)left, (String)right) <= 0;
+                throw new RuntimeError(expr.operator,
+                        "Only numbers and Strings can be compared.");
             
             case COMMA:
                 return right;
@@ -92,13 +163,13 @@ class Interpreter implements Expr.Visitor<Object> {
             case BANG:
                 return !isTruthy(right);
             case MINUS:
-                checkNumberOperand(expr.operator, right);
+                requireNumberOperand(expr.operator, right);
                 return -(double)right;
             case MINUS_MINUS:
-                checkNumberOperand(expr.operator, right);
+                requireNumberOperand(expr.operator, right);
                 return (double)right - 1;
             case PLUS_PLUS:
-                checkNumberOperand(expr.operator, right);
+                requireNumberOperand(expr.operator, right);
                 return (double)right + 1;
         }
 
@@ -111,14 +182,33 @@ class Interpreter implements Expr.Visitor<Object> {
 
         switch(expr.operator.type) {
             case MINUS_MINUS:
-                checkNumberOperand(expr.operator, left);
+                requireNumberOperand(expr.operator, left);
                 return (double)left;
             case PLUS_PLUS:
-                checkNumberOperand(expr.operator, left);
+                requireNumberOperand(expr.operator, left);
                 return (double)left;
         }
 
         return null;
+    }
+
+    @Override
+    public Object visitVariableExpr(Expr.Variable expr) {
+        return env.get(expr.name);
+    }
+
+    @Override
+    public Object visitAssignExpr(Expr.Assign expr) {
+        Object value = evaluate(expr.value);
+        env.assign(expr.name, value);
+        return value;
+    }
+
+    private int compareStrings(Token operator, String left, String right) {
+        if(left == null || right == null) 
+            throw new RuntimeError(operator, "Can't compare to null!");
+
+        return left.compareTo(right);
     }
 
     private String stringify(Object object) {
@@ -136,14 +226,42 @@ class Interpreter implements Expr.Visitor<Object> {
         return object.toString();
     }
 
-    private void checkNumberOperands(
+    private boolean isStringOperand(Object value) {
+        return value instanceof String;
+    }
+
+    private boolean isStringOperands(Object left, Object right) {
+        return left instanceof String && right instanceof String;
+    }
+
+    private void requireStringOperands(
+            Token operator, Object left, Object right) {
+        if(left instanceof String && right instanceof String) return;
+
+        throw new RuntimeError(operator, "Operand must be strings");
+    }
+
+    private void requireStringOperand(Token operator, Object object) {
+        if(object instanceof String) return;
+        throw new RuntimeError(operator, "Operand must be a string");
+    }
+
+    private boolean isNumberOperand(Object value) {
+        return value instanceof Double;
+    }
+
+    private boolean isNumberOperands(Object left, Object right) {
+        return left instanceof Double && right instanceof Double;
+    }
+
+    private void requireNumberOperands(
             Token operator, Object left, Object right) {
         if(left instanceof Double && right instanceof Double) return;
 
         throw new RuntimeError(operator, "Operand must be numbers");
     }
 
-    private void checkNumberOperand(Token operator, Object object) {
+    private void requireNumberOperand(Token operator, Object object) {
         if(object instanceof Double) return;
         throw new RuntimeError(operator, "Operand must be a number");
     }
@@ -161,5 +279,22 @@ class Interpreter implements Expr.Visitor<Object> {
 
     private Object evaluate(Expr expr) {
         return expr.accept(this);
+    }
+
+    private void execute(Stmt statement) {
+        statement.accept(this);
+    }
+
+    private void executeBlock(List<Stmt> statements, Environment newEnv) {
+        Environment oldEnv = env;
+
+        try {
+            env = newEnv;
+            for(Stmt statement : statements) {
+                execute(statement);
+            }
+        } finally {
+            env = oldEnv;
+        }
     }
 }

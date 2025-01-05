@@ -5,7 +5,7 @@ repl:
 	cd build; java tech/kekulta/lox/Lox
 
 run:
-	cd build; java tech/kekulta/lox/Lox ../test/Test.lox
+	@cd build; java tech/kekulta/lox/Lox ../test/Test.lox
 
 ast:
 	cd src; javac tech/kekulta/util/GenerateAst.java 

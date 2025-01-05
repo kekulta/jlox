@@ -11,7 +11,7 @@ class AstPrinter implements Expr.Visitor<String> {
                 new Expr.Grouping(new Expr.Literal("90"))
                 );
 
-        System.out.println(new AstPrinter().print(expr));
+        Print.println(new AstPrinter().print(expr));
     }
 
     String print(Expr expr) {

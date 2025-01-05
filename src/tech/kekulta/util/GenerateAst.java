@@ -19,7 +19,16 @@ public class GenerateAst {
             "Grouping   : Expr expression",
             "Literal    : Object value",
             "Unary      : Token operator, Expr right",
-            "Postfix    : Expr left, Token operator"
+            "Postfix    : Expr left, Token operator",
+            "Variable   : Token name",
+            "Assign     : Token name, Expr value"
+        ));
+
+        defineAst(outputDir, "Stmt", Arrays.asList(
+            "Expression : Expr expression",
+            "Print      : Expr expression",
+            "Var        : Token name, Expr initializer",
+            "Block      : List<Stmt> statements"
         ));
     }   
 
@@ -28,7 +37,7 @@ public class GenerateAst {
             ) throws IOException {
         String path = outputDir + "/" + baseName + ".java";
         PrintWriter writer = new PrintWriter(path, "UTF-8");
-        System.out.println(path);
+        Printer.println(path);
 
         writer.println("package tech.kekulta.lox;");
         writer.println();

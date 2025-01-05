@@ -24,4 +24,4 @@ XXX
 // (- 10 + 20) * 30, -20, (-10) * 100
 //, 1 == 2 ? 1 : 2, true, false
 
-(nil ? "one" : false) ? "two" : "three" 
+var a - 1;

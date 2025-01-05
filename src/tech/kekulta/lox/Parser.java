@@ -1,6 +1,7 @@
 package tech.kekulta.lox;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.function.Supplier;
 
 import static tech.kekulta.lox.TokenType.*;
@@ -8,6 +9,8 @@ import static tech.kekulta.lox.TokenType.*;
 class Parser {
     private static class ParseError extends RuntimeException {};
 
+    private boolean allowExpression = false;
+    private boolean foundExpression = false;
     private final List<Token> tokens;
     private int current = 0;
 
@@ -15,16 +18,106 @@ class Parser {
         this.tokens = tokens;
     }
 
-    Expr parse() {
+    List<Stmt> parseRepl() {
+        allowExpression = true;
+        List<Stmt> statements = new ArrayList<Stmt>();
+
+        while(!isAtEnd()) {
+            statements.add(declaration());
+            if(foundExpression) break;
+            allowExpression = false;
+        }
+        return statements;
+    }
+
+    List<Stmt> parse() {
+        List<Stmt> statements = new ArrayList<Stmt>();
+
+        while(!isAtEnd()) {
+            statements.add(declaration());
+        }
+        return statements;
+    }
+
+    private Stmt declaration() {
         try {
-            return expression();
-        } catch(ParseError e) {
+            if(match(VAR)) return varDeclaration();
+
+            return statement();
+        } catch (ParseError e) {
+            synchronize();
             return null;
         }
     }
 
+    private Stmt varDeclaration() {
+
+        Token name = consume(IDENTIFIER,
+                "Expect variable name.");
+
+        Expr initializer = null;
+        if(match(EQUAL)) {
+            initializer = expression();
+        }
+
+        consume(SEMICOLON, "Expect ';' after variable declaration.");
+
+        return new Stmt.Var(name, initializer);
+    }
+
+    private Stmt statement() {
+        if(match(PRINT)) return printStatement();
+        if(match(LEFT_BRACE)) return block();
+        return expressionStatement();
+    }
+
+    private Stmt block() {
+        List<Stmt> statements = new ArrayList<Stmt>();
+
+        while(!isAtEnd() && !check(RIGHT_BRACE)) {
+            statements.add(declaration());
+        }
+
+        consume(RIGHT_BRACE, "Expect ';' after block.");
+        return new Stmt.Block(statements);
+    }
+
+    private Stmt printStatement() {
+        Expr value = expression();
+        consume(SEMICOLON, "Expect ';' after value.");
+        return new Stmt.Print(value);
+    }
+
+    private Stmt expressionStatement() {
+        Expr value = expression();
+        if(allowExpression && isAtEnd()) {
+            foundExpression = true;
+        } else {
+            consume(SEMICOLON, "Expect ';' after expression.");
+        }
+        return new Stmt.Expression(value);
+    }
+
     private Expr expression() {
-        return conditional();
+        return assignment();
+    }
+
+    private Expr assignment() {
+        Expr expr = conditional();
+
+        if(match(EQUAL)) {
+            Token equals = previous();
+            Expr value = assignment();
+
+            if(expr instanceof Expr.Variable) {
+                Token name = ((Expr.Variable)expr).name;
+                return new Expr.Assign(name, value);
+            }
+
+            error(equals, "Invalid assignment target.");
+        }
+
+        return expr;
     }
 
     private Expr conditional() {
@@ -90,6 +183,7 @@ class Parser {
         if(match(NIL)) return new Expr.Literal(null);
 
         if(match(NUMBER, STRING)) return new Expr.Literal(previous().literal);
+        if(match(IDENTIFIER)) return new Expr.Variable(previous());
         if(match(LEFT_PAREN)) {
             Expr expr = expression();
             consume(RIGHT_PAREN, "Expect ')' after an expression.");
@@ -215,7 +309,7 @@ class Parser {
 
         if(!isAtEnd() && previous().type == SEMICOLON) return;
 
-        while(isAtEnd()) {
+        while(!isAtEnd()) {
             switch(peek().type) {
                 case CLASS:
                 case FOR:
@@ -227,8 +321,8 @@ class Parser {
                 case WHILE:
                     return;
             }
-        }
 
-        advance();
+            advance();
+        }
     }
 }
