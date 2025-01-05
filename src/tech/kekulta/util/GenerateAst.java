@@ -21,14 +21,21 @@ public class GenerateAst {
             "Unary      : Token operator, Expr right",
             "Postfix    : Expr left, Token operator",
             "Variable   : Token name",
-            "Assign     : Token name, Expr value"
+            "Assign     : Token name, Expr value",
+            "Logical    : Expr left, Token operator, Expr right"
         ));
 
         defineAst(outputDir, "Stmt", Arrays.asList(
             "Expression : Expr expression",
+            "Break      : ",
+            "Continue   : ",
             "Print      : Expr expression",
             "Var        : Token name, Expr initializer",
-            "Block      : List<Stmt> statements"
+            "Block      : List<Stmt> statements",
+            "If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
+            "While      : Expr condition, Stmt body",
+            "For        : Stmt initializer, Expr condition, "
+                        + "Expr increment, Stmt body"
         ));
     }   
 
@@ -37,7 +44,7 @@ public class GenerateAst {
             ) throws IOException {
         String path = outputDir + "/" + baseName + ".java";
         PrintWriter writer = new PrintWriter(path, "UTF-8");
-        Printer.println(path);
+        System.out.printf("Generated: %s\n", path);
 
         writer.println("package tech.kekulta.lox;");
         writer.println();
@@ -83,7 +90,12 @@ public class GenerateAst {
                 + " extends " + baseName + " {");
         writer.println("    " + className + "(" + fieldsList + ") {");
 
-        String[] fields = fieldsList.split(", ");
+        String[] fields;
+        if(fieldsList.isEmpty()) {
+            fields = new String[0];
+        } else {
+            fields = fieldsList.split(", ");
+        }
         for(String field : fields) {
             String name = field.split(" ")[1];
             writer.println("      this." + name + " = " + name + ";");

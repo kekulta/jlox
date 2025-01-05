@@ -3,6 +3,10 @@ package tech.kekulta.lox;
 class Printer {
     private static boolean isNewLine = true;
 
+    static void setNewLine() {
+        isNewLine = true;
+    }
+
     static boolean isNewLine() {
         return isNewLine;
     }

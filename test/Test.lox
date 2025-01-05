@@ -1,27 +1,6 @@
-/** 
-TODO
-FIXME
-XXX
-    Multi-line comment
- */
-
-/*
-    /*
-     Nested multi-line comment
-    */
- */
-
-/**
- * Multi-line doc comment(not supported)
- */
-
-/*
- */
-
-// Basic precedence
-//(10 + 20) + 50 * 60 + (30 - 40)
-// Grouping precedence
-// (- 10 + 20) * 30, -20, (-10) * 100
-//, 1 == 2 ? 1 : 2, true, false
-
-var a - 1;
+var a = 0;
+for (;;a++) {
+    if(a >= 10 and a <= 20) continue;
+    if(a > 30) break;
+    print a + "\n";
+}

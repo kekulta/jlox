@@ -6,6 +6,8 @@ import java.util.List;
 import static tech.kekulta.lox.TokenType.*;
 
 class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
+    private static class BreakException extends RuntimeException {};
+    private static class ContinueException extends RuntimeException {};
 
     private Environment env = new Environment();
 
@@ -57,6 +59,60 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     public Void visitBlockStmt(Stmt.Block stmt) {
         executeBlock(stmt.statements, new Environment(env));
         return null;
+    }
+
+    @Override
+    public Void visitIfStmt(Stmt.If stmt) {
+        if(isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.thenBranch);
+        } else if(stmt.elseBranch != null) {
+            execute(stmt.elseBranch);
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitWhileStmt(Stmt.While stmt) {
+        while(isTruthy(evaluate(stmt.condition))) {
+            try {
+                execute(stmt.body);
+            } catch(BreakException e) {
+                break;
+            } catch(ContinueException e) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitForStmt(Stmt.For stmt) {
+        if(stmt.initializer != null) execute(stmt.initializer);
+        while(stmt.condition == null || isTruthy(evaluate(stmt.condition))) {
+            try {
+                execute(stmt.body);
+                if(stmt.increment != null) evaluate(stmt.increment);
+            } catch(BreakException e) {
+                break;
+            } catch(ContinueException e) {
+                if(stmt.increment != null) evaluate(stmt.increment);
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
+    public Void visitBreakStmt(Stmt.Break stmt) {
+        throw new BreakException();
+    }
+
+    @Override
+    public Void visitContinueStmt(Stmt.Continue stmt) {
+        throw new ContinueException();
     }
 
     @Override
@@ -146,6 +202,22 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
     }
 
     @Override
+    public Object visitLogicalExpr(Expr.Logical expr) {
+        Object left = evaluate(expr.left);
+
+        switch(expr.operator.type) {
+            case OR:
+                if(isTruthy(left)) return left;
+                break;
+            case AND:
+                if(!isTruthy(left)) return left;
+                break;
+        }
+
+        return evaluate(expr.right);
+    }
+
+    @Override
     public Object visitGroupingExpr(Expr.Grouping expr) {
         return evaluate(expr.expression);
     }
@@ -167,9 +239,14 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
                 return -(double)right;
             case MINUS_MINUS:
                 requireNumberOperand(expr.operator, right);
+                if(expr.right instanceof Expr.Variable)
+                    decrement(((Expr.Variable)expr.right).name);
+                
                 return (double)right - 1;
             case PLUS_PLUS:
                 requireNumberOperand(expr.operator, right);
+                if(expr.right instanceof Expr.Variable)
+                    increment(((Expr.Variable)expr.right).name);
                 return (double)right + 1;
         }
 
@@ -183,9 +260,13 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
         switch(expr.operator.type) {
             case MINUS_MINUS:
                 requireNumberOperand(expr.operator, left);
+                if(expr.left instanceof Expr.Variable)
+                    decrement(((Expr.Variable)expr.left).name);
                 return (double)left;
             case PLUS_PLUS:
                 requireNumberOperand(expr.operator, left);
+                if(expr.left instanceof Expr.Variable)
+                    increment(((Expr.Variable)expr.left).name);
                 return (double)left;
         }
 
@@ -209,6 +290,16 @@ class Interpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
             throw new RuntimeError(operator, "Can't compare to null!");
 
         return left.compareTo(right);
+    }
+
+    private void increment(Token name) {
+        Object variable = env.get(name);
+        env.assign(name, (double)variable+1);
+    }
+
+    private void decrement(Token name) {
+        Object variable = env.get(name);
+        env.assign(name, (double)variable-1);
     }
 
     private String stringify(Object object) {

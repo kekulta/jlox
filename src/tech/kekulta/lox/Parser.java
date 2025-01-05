@@ -2,6 +2,7 @@ package tech.kekulta.lox;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
 import static tech.kekulta.lox.TokenType.*;
@@ -13,6 +14,7 @@ class Parser {
     private boolean foundExpression = false;
     private final List<Token> tokens;
     private int current = 0;
+    private int loopDepth = 0;
 
     Parser(List<Token> tokens) {
         this.tokens = tokens;
@@ -66,9 +68,89 @@ class Parser {
     }
 
     private Stmt statement() {
+        if(match(IF)) return ifStatement();
         if(match(PRINT)) return printStatement();
+        if(match(FOR)) return forStatement();
+        if(match(WHILE)) return whileStatement();
         if(match(LEFT_BRACE)) return block();
+        if(match(BREAK)) {
+            if(loopDepth == 0)
+                throw error(previous(),
+                        "'break' prohibited outside of a loop.");
+            consume(SEMICOLON, "Expect ';' after 'break'.");
+            return new Stmt.Break();
+        }
+        if(match(CONTINUE)) {
+            if(loopDepth == 0)
+                throw error(previous(),
+                        "'continue' prohibited outside of a loop.");
+            consume(SEMICOLON, "Expect ';' after 'continue'.");
+            return new Stmt.Continue();
+        }
         return expressionStatement();
+    } 
+
+    private Stmt forStatement() {
+        consume(LEFT_PAREN, "Expect '(' after 'for'.");
+
+        Stmt initializer;
+        if(match(SEMICOLON)) {
+            initializer = null;
+        } else if(match(VAR)) {
+            initializer = varDeclaration();
+        } else {
+            initializer = expressionStatement();
+        }
+
+        Expr condition = null;
+        if(!check(SEMICOLON)) {
+            condition = expression();
+        }
+        consume(SEMICOLON, "Expect ';' after loop condition.");
+
+        Expr increment = null;
+        if(!check(RIGHT_PAREN)) {
+            increment = expression();
+        }
+        consume(RIGHT_PAREN, "Expect ')' after increment.");
+
+        Stmt body;
+        try {
+            loopDepth++;
+            body = statement();
+        } finally {
+            loopDepth--;
+        }
+
+        return new Stmt.For(initializer, condition, increment, body);
+    }
+
+    private Stmt whileStatement() {
+        consume(LEFT_PAREN, "Expect '(' after 'while'.");
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Expect ')' after condition.");
+
+        Stmt body;
+        try {
+            loopDepth++;
+            body = statement();
+        } finally {
+            loopDepth--;
+        }
+
+
+        return new Stmt.While(condition, body);
+    }
+
+    private Stmt ifStatement() {
+        consume(LEFT_PAREN, "Expect '(' after 'if'.");
+        Expr condition = expression();
+        consume(RIGHT_PAREN, "Expect ')' after condition.");
+        Stmt thenBranch = statement();
+        Stmt elseBranch = null;
+        if(match(ELSE)) elseBranch = statement();
+
+        return new Stmt.If(condition, thenBranch, elseBranch);
     }
 
     private Stmt block() {
@@ -103,7 +185,7 @@ class Parser {
     }
 
     private Expr assignment() {
-        Expr expr = conditional();
+        Expr expr = or();
 
         if(match(EQUAL)) {
             Token equals = previous();
@@ -118,6 +200,14 @@ class Parser {
         }
 
         return expr;
+    }
+
+    private Expr or() {
+        return logicLeftAssociative(() -> (and()), OR);
+    }
+
+    private Expr and() {
+        return logicLeftAssociative(() -> (equality()), AND);
     }
 
     private Expr conditional() {
@@ -136,24 +226,25 @@ class Parser {
     }
 
     private Expr comma() {
-        return leftAssociative(() -> (equality()), COMMA);
+        return binaryLeftAssociative(() -> (equality()), COMMA);
     }
 
     private Expr equality() {
-        return leftAssociative(() -> (comparison()), BANG_EQUAL, EQUAL_EQUAL);
+        return binaryLeftAssociative(
+                () -> (comparison()), BANG_EQUAL, EQUAL_EQUAL);
     }
 
     private Expr comparison() {
-        return leftAssociative(() -> (term()),
+        return binaryLeftAssociative(() -> (term()),
                 GREATER, GREATER_EQUAL, LESS, LESS_EQUAL);
     }
 
     private Expr term() {
-        return leftAssociative(() -> (factor()), MINUS, PLUS);
+        return binaryLeftAssociative(() -> (factor()), MINUS, PLUS);
     }
 
     private Expr factor() {
-        return leftAssociative(() -> (unary()), SLASH, STAR);
+        return binaryLeftAssociative(() -> (unary()), SLASH, STAR);
     }
 
     private Expr unary() {
@@ -220,7 +311,20 @@ class Parser {
         return null;
     }
 
-    private Expr leftAssociative(
+    private Expr logicLeftAssociative(
+            Supplier<Expr> exprSupplier, TokenType... types) {
+        Expr expr = exprSupplier.get();
+
+        while(match(types)) {
+            Token operator = previous();
+            Expr right = exprSupplier.get();
+            expr = new Expr.Logical(expr, operator, right);
+        }
+
+        return expr;
+    }
+
+    private Expr binaryLeftAssociative(
             Supplier<Expr> exprSupplier, TokenType... types) {
         Expr expr = exprSupplier.get();
 

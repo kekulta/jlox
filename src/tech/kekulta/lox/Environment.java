@@ -4,6 +4,8 @@ import java.util.Map;
 import java.util.HashMap;
 
 class Environment {
+    private final static Object Uninitialized = new Object();
+
     private final Environment enclosing;
     private final Map<String, Object> values = new HashMap<String, Object>();
 
@@ -17,11 +19,20 @@ class Environment {
 
 
     void define(String name, Object value) {
-        values.put(name, value);
+        Object initial = value;
+        if(initial == null) {
+            initial = Uninitialized;
+        }
+        values.put(name, initial);
     }
 
     Object get(Token name) {
         if(values.containsKey(name.lexeme)) {
+            if(values.get(name.lexeme) == Uninitialized) {
+                throw new RuntimeError(name,
+                        "Can't access uninitialized variable '"
+                        + name.lexeme + "'.");
+            }
             return values.get(name.lexeme);
         }
 

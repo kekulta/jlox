@@ -65,6 +65,7 @@ public class Lox {
                 Printer.print("\033[7m%\033[0m\n> ");
             }
             String line = reader.readLine();
+            Printer.setNewLine();
 
             if (line == null) continue;
 
